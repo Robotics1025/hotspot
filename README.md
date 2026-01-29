@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FASTNET WiFi Hotspot Billing System
 
-## Getting Started
+A captive portal billing system for MikroTik WiFi hotspots with Mobile Money payments (MTN MoMo & Airtel Money) for Uganda.
 
-First, run the development server:
+## Features
+
+- 📱 **Mobile-first captive portal** - Clean payment interface
+- 💳 **Mobile Money integration** - MTN MoMo & Airtel Money via Flutterwave
+- 🎫 **Voucher system** - Pre-paid code redemption
+- 📊 **Admin dashboard** - Revenue stats, payments, active users
+- 🌐 **MikroTik integration** - Auto-authorize users after payment
+
+## Packages
+
+| Package | Duration | Price |
+|---------|----------|-------|
+| 1 DAY | 24 hours | 1,000 UGX |
+| 3 DAYS | 72 hours | 2,500 UGX |
+| WEEKLY | 7 days | 6,000 UGX |
+| MONTHLY | 30 days | 25,000 UGX |
+
+## Quick Start
 
 ```bash
+# Install dependencies
+npm install
+
+# Run in development mode (demo mode enabled)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 for the portal and http://localhost:3000/admin for the dashboard.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create a `.env.local` file:
 
-## Learn More
+```env
+# Flutterwave API (get from dashboard.flutterwave.com)
+FLW_PUBLIC_KEY=your_public_key
+FLW_SECRET_KEY=your_secret_key
 
-To learn more about Next.js, take a look at the following resources:
+# MikroTik Router
+MIKROTIK_HOST=192.168.88.1
+MIKROTIK_USER=admin
+MIKROTIK_PASSWORD=your_password
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Demo mode (set to 'false' for production)
+DEMO_MODE=true
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Tech Stack
 
-## Deploy on Vercel
+- **Next.js 15** - React framework
+- **SQLite** - Database (better-sqlite3)
+- **Flutterwave** - Payment processing
+- **MikroTik API** - Router integration
+- **Tailwind CSS** - Styling
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Production Deployment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Register at [Flutterwave](https://dashboard.flutterwave.com)
+2. Add API keys to environment
+3. Configure MikroTik router
+4. Set `DEMO_MODE=false`
+5. Deploy to your server
+
+## License
+
+MIT
