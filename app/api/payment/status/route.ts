@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     try {
         // Get payment from database
-        const payment = getPaymentByTxRef(tx_ref);
+        const payment = await getPaymentByTxRef(tx_ref);
         if (!payment) {
             return NextResponse.json(
                 { success: false, error: 'Payment not found' },
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
         // If already successful, return the status
         if (payment.status === 'successful') {
-            const pkg = getPackageById(payment.package_id);
+            const pkg = await getPackageById(payment.package_id);
             return NextResponse.json({
                 success: true,
                 status: 'successful',
@@ -43,11 +43,11 @@ export async function GET(request: NextRequest) {
 
         if (verification.status === 'success' && verification.data?.status === 'successful') {
             // Update payment status in database
-            updatePaymentStatus(tx_ref, 'successful', verification.data.flw_ref);
+            await updatePaymentStatus(tx_ref, 'successful', verification.data.flw_ref);
 
             // Get updated payment
-            const updatedPayment = getPaymentByTxRef(tx_ref);
-            const pkg = getPackageById(payment.package_id);
+            const updatedPayment = await getPaymentByTxRef(tx_ref);
+            const pkg = await getPackageById(payment.package_id);
 
             if (updatedPayment && pkg) {
                 // Create hotspot user
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
                 });
 
                 // Create session
-                createSession({
+                await createSession({
                     payment_id: updatedPayment.id,
                     mac_address: updatedPayment.mac_address || 'unknown',
                     ip_address: updatedPayment.ip_address || undefined,

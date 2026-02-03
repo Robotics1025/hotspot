@@ -58,7 +58,7 @@ export async function addHotspotUser(data: {
             userCommand['limit-uptime'] = data.limitUptime;
         }
 
-        await client.write('/ip/hotspot/user/add', userCommand);
+        await (client as any).write('/ip/hotspot/user/add', userCommand);
         await client.close();
 
         console.log(`Hotspot user ${data.username} created successfully`);
@@ -87,12 +87,12 @@ export async function removeHotspotUser(username: string): Promise<boolean> {
 
         await client.connect();
 
-        const users = await client.write('/ip/hotspot/user/print', {
+        const users = await (client as any).write('/ip/hotspot/user/print', {
             '?name': username
         });
 
         if (users.length > 0) {
-            await client.write('/ip/hotspot/user/remove', {
+            await (client as any).write('/ip/hotspot/user/remove', {
                 '.id': users[0]['.id']
             });
             console.log(`Hotspot user ${username} removed successfully`);
@@ -129,7 +129,7 @@ export async function loginHotspotUser(data: {
 
         await client.connect();
 
-        await client.write('/ip/hotspot/ip-binding/add', {
+        await (client as any).write('/ip/hotspot/ip-binding/add', {
             address: data.ipAddress,
             'mac-address': data.macAddress,
             type: 'bypassed',
@@ -164,22 +164,22 @@ export async function disconnectUser(macAddress: string): Promise<boolean> {
 
         await client.connect();
 
-        const bindings = await client.write('/ip/hotspot/ip-binding/print', {
+        const bindings = await (client as any).write('/ip/hotspot/ip-binding/print', {
             '?mac-address': macAddress
         });
 
         for (const binding of bindings) {
-            await client.write('/ip/hotspot/ip-binding/remove', {
+            await (client as any).write('/ip/hotspot/ip-binding/remove', {
                 '.id': binding['.id']
             });
         }
 
-        const sessions = await client.write('/ip/hotspot/active/print', {
+        const sessions = await (client as any).write('/ip/hotspot/active/print', {
             '?mac-address': macAddress
         });
 
         for (const session of sessions) {
-            await client.write('/ip/hotspot/active/remove', {
+            await (client as any).write('/ip/hotspot/active/remove', {
                 '.id': session['.id']
             });
         }
@@ -218,7 +218,7 @@ export async function getActiveUsers(): Promise<Array<{
         });
 
         await client.connect();
-        const active = await client.write('/ip/hotspot/active/print');
+        const active = await (client as any).write('/ip/hotspot/active/print');
         await client.close();
 
         return active.map((session: Record<string, string>) => ({

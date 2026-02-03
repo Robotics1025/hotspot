@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get package details
-        const pkg = getPackageById(package_id);
+        const pkg = await getPackageById(package_id);
         if (!pkg) {
             return NextResponse.json(
                 { success: false, error: 'Invalid package selected' },
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
         const tx_ref = `FASTNET-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
         // Create payment record
-        const paymentId = createPayment({
+        const paymentId = await createPayment({
             tx_ref,
             phone: formatPhoneNumber(phone),
             amount: pkg.price,

@@ -4,10 +4,10 @@ import { getTodayStats, getRecentPayments, getActiveSessions, getPackages } from
 
 export async function GET() {
     try {
-        const stats = getTodayStats();
-        const recentPayments = getRecentPayments(20);
-        const activeSessions = getActiveSessions();
-        const packages = getPackages();
+        const stats = await getTodayStats();
+        const recentPayments = await getRecentPayments(20);
+        const activeSessions = await getActiveSessions();
+        const packages = await getPackages();
 
         return NextResponse.json({
             success: true,

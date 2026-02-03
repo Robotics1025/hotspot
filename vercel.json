@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30
+    }
+  },
+  "regions": ["sin1"],
+  "env": {
+    "DEMO_MODE": "false"
+  }
+}

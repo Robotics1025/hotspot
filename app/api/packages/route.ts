@@ -4,7 +4,7 @@ import { getPackages } from '@/lib/db';
 
 export async function GET() {
     try {
-        const packages = getPackages();
+        const packages = await getPackages();
         return NextResponse.json({ success: true, packages });
     } catch (error) {
         console.error('Error fetching packages:', error);

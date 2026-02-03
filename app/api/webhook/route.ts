@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
             const flw_ref = data.flw_ref;
 
             // Get payment record
-            const payment = getPaymentByTxRef(tx_ref);
+            const payment = await getPaymentByTxRef(tx_ref);
             if (!payment) {
                 console.error('Payment not found for tx_ref:', tx_ref);
                 return NextResponse.json({ status: 'payment not found' });
@@ -37,10 +37,10 @@ export async function POST(request: NextRequest) {
             }
 
             // Update payment status
-            updatePaymentStatus(tx_ref, 'successful', flw_ref);
+            await updatePaymentStatus(tx_ref, 'successful', flw_ref);
 
             // Get package
-            const pkg = getPackageById(payment.package_id);
+            const pkg = await getPackageById(payment.package_id);
             if (!pkg) {
                 console.error('Package not found:', payment.package_id);
                 return NextResponse.json({ status: 'package not found' });
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
             const expiresAt = new Date();
             expiresAt.setHours(expiresAt.getHours() + pkg.duration_hours);
 
-            createSession({
+            await createSession({
                 payment_id: payment.id,
                 mac_address: payment.mac_address || 'unknown',
                 ip_address: payment.ip_address || undefined,
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
         if (event === 'charge.completed' && data.status === 'failed') {
             const tx_ref = data.tx_ref;
-            updatePaymentStatus(tx_ref, 'failed', data.flw_ref);
+            await updatePaymentStatus(tx_ref, 'failed', data.flw_ref);
             console.log(`Payment ${tx_ref} failed.`);
             return NextResponse.json({ status: 'noted' });
         }

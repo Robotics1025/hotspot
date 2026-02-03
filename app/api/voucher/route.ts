@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get voucher
-        const voucher = getVoucherByCode(code.toUpperCase());
+        const voucher = await getVoucherByCode(code.toUpperCase());
         if (!voucher) {
             return NextResponse.json(
                 { success: false, error: 'Invalid voucher code' },
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Redeem voucher
-        const redeemed = redeemVoucher(code.toUpperCase(), mac_address || 'unknown');
+        const redeemed = await redeemVoucher(code.toUpperCase(), mac_address || 'unknown');
         if (!redeemed) {
             return NextResponse.json(
                 { success: false, error: 'Failed to redeem voucher' },
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + (voucher.duration_hours || 24));
 
-        createSession({
+        await createSession({
             payment_id: 0, // No payment for vouchers
             mac_address: mac_address || 'unknown',
             ip_address: ip_address || undefined,
