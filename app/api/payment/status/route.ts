@@ -1,7 +1,6 @@
-// API route to check payment status
+// API route to check payment status via PawaPay
 import { NextRequest, NextResponse } from 'next/server';
 import { getPaymentByTxRef, updatePaymentStatus, getPackageById, createSession } from '@/lib/db';
-import { verifyPaymentByTxRef } from '@/lib/flutterwave';
 import { addHotspotUser, hoursToUptime } from '@/lib/mikrotik';
 
 export async function GET(request: NextRequest) {
@@ -38,36 +37,34 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        // Verify with Flutterwave
-        const verification = await verifyPaymentByTxRef(tx_ref);
-
-        if (verification.status === 'success' && verification.data?.status === 'successful') {
-            // Update payment status in database
-            await updatePaymentStatus(tx_ref, 'successful', verification.data.flw_ref);
-
-            // Get updated payment
-            const updatedPayment = await getPaymentByTxRef(tx_ref);
+        // Demo mode - simulate successful payment after a few checks
+        const isDemoMode = process.env.DEMO_MODE === 'true';
+        
+        if (isDemoMode) {
+            // In demo mode, mark as successful
+            await updatePaymentStatus(tx_ref, 'successful', 'demo-ref');
+            
             const pkg = await getPackageById(payment.package_id);
-
-            if (updatedPayment && pkg) {
-                // Create hotspot user
-                const username = `FASTNET-${updatedPayment.phone.slice(-4)}`;
+            if (pkg) {
+                const username = `FASTNET-${payment.phone.slice(-4)}`;
                 const password = Math.random().toString(36).substr(2, 8).toUpperCase();
 
                 await addHotspotUser({
                     username,
                     password,
-                    macAddress: updatedPayment.mac_address || undefined,
+                    macAddress: payment.mac_address || undefined,
                     limitUptime: hoursToUptime(pkg.duration_hours)
                 });
 
-                // Create session
+                const expiresAt = new Date();
+                expiresAt.setHours(expiresAt.getHours() + pkg.duration_hours);
+
                 await createSession({
-                    payment_id: updatedPayment.id,
-                    mac_address: updatedPayment.mac_address || 'unknown',
-                    ip_address: updatedPayment.ip_address || undefined,
+                    payment_id: payment.id,
+                    mac_address: payment.mac_address || 'unknown',
+                    ip_address: payment.ip_address || undefined,
                     username,
-                    expires_at: updatedPayment.expires_at || new Date().toISOString()
+                    expires_at: expiresAt.toISOString()
                 });
 
                 return NextResponse.json({
@@ -75,7 +72,7 @@ export async function GET(request: NextRequest) {
                     status: 'successful',
                     message: 'Payment confirmed! You are now connected.',
                     payment: {
-                        ...updatedPayment,
+                        ...payment,
                         package_name: pkg.name,
                         username,
                         password
@@ -84,13 +81,83 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // Payment still pending or failed
+        // Production: Check with PawaPay API
+        const apiToken = process.env.PAWAPAY_API_TOKEN;
+        const baseUrl = process.env.PAWAPAY_BASE_URL || 'https://api.sandbox.pawapay.io';
+
+        if (!apiToken) {
+            return NextResponse.json({
+                success: true,
+                status: payment.status,
+                message: 'Payment is still being processed.'
+            });
+        }
+
+        const statusResponse = await fetch(`${baseUrl}/v2/deposits/${tx_ref}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${apiToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+
+            if (statusData.status === 'COMPLETED') {
+                // Payment successful
+                await updatePaymentStatus(tx_ref, 'successful', statusData.depositId);
+
+                const pkg = await getPackageById(payment.package_id);
+                if (pkg) {
+                    const username = `FASTNET-${payment.phone.slice(-4)}`;
+                    const password = Math.random().toString(36).substr(2, 8).toUpperCase();
+
+                    await addHotspotUser({
+                        username,
+                        password,
+                        macAddress: payment.mac_address || undefined,
+                        limitUptime: hoursToUptime(pkg.duration_hours)
+                    });
+
+                    const expiresAt = new Date();
+                    expiresAt.setHours(expiresAt.getHours() + pkg.duration_hours);
+
+                    await createSession({
+                        payment_id: payment.id,
+                        mac_address: payment.mac_address || 'unknown',
+                        ip_address: payment.ip_address || undefined,
+                        username,
+                        expires_at: expiresAt.toISOString()
+                    });
+
+                    return NextResponse.json({
+                        success: true,
+                        status: 'successful',
+                        message: 'Payment confirmed! You are now connected.',
+                        payment: {
+                            ...payment,
+                            package_name: pkg.name,
+                            username,
+                            password
+                        }
+                    });
+                }
+            } else if (statusData.status === 'FAILED') {
+                await updatePaymentStatus(tx_ref, 'failed');
+                return NextResponse.json({
+                    success: true,
+                    status: 'failed',
+                    message: 'Payment was not successful. Please try again.'
+                });
+            }
+        }
+
+        // Payment still pending
         return NextResponse.json({
             success: true,
             status: payment.status,
-            message: payment.status === 'pending'
-                ? 'Payment is still being processed. Please complete the payment on your phone.'
-                : 'Payment was not successful.'
+            message: 'Payment is still being processed. Please complete the payment on your phone.'
         });
 
     } catch (error) {

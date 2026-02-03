@@ -1,7 +1,36 @@
-// API route to initiate payment
+// API route to initiate payment via PawaPay
 import { NextRequest, NextResponse } from 'next/server';
 import { createPayment, getPackageById } from '@/lib/db';
-import { initiateMobileMoneyPayment, detectNetwork, formatPhoneNumber } from '@/lib/flutterwave';
+import { v4 as uuidv4 } from 'uuid';
+
+// Detect network from phone number
+function detectNetwork(phone: string): 'MTN' | 'AIRTEL' | null {
+    const cleaned = phone.replace(/\D/g, '');
+    
+    // MTN Uganda prefixes: 077, 078, 076, 039
+    if (/^(256)?(77|78|76|39)/.test(cleaned) || /^0(77|78|76|39)/.test(cleaned)) {
+        return 'MTN';
+    }
+    
+    // Airtel Uganda prefixes: 070, 075, 074
+    if (/^(256)?(70|75|74)/.test(cleaned) || /^0(70|75|74)/.test(cleaned)) {
+        return 'AIRTEL';
+    }
+    
+    return null;
+}
+
+// Format phone number to international format
+function formatPhoneNumber(phone: string): string {
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.startsWith('256')) {
+        return cleaned;
+    }
+    if (cleaned.startsWith('0')) {
+        return '256' + cleaned.slice(1);
+    }
+    return '256' + cleaned;
+}
 
 export async function POST(request: NextRequest) {
     try {
@@ -35,31 +64,96 @@ export async function POST(request: NextRequest) {
         }
 
         // Generate unique transaction reference
-        const tx_ref = `FASTNET-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const depositId = uuidv4();
+        const formattedPhone = formatPhoneNumber(phone);
 
         // Create payment record
         const paymentId = await createPayment({
-            tx_ref,
-            phone: formatPhoneNumber(phone),
+            tx_ref: depositId,
+            phone: formattedPhone,
             amount: pkg.price,
             package_id: pkg.id,
             mac_address,
             ip_address
         });
 
-        // Initiate mobile money payment
-        const response = await initiateMobileMoneyPayment({
-            phone,
-            amount: pkg.price,
-            tx_ref,
-            network
+        // Demo mode check
+        const isDemoMode = process.env.DEMO_MODE === 'true';
+
+        if (isDemoMode) {
+            return NextResponse.json({
+                success: true,
+                message: 'Demo mode: Payment initiated successfully. Check your phone.',
+                tx_ref: depositId,
+                payment_id: paymentId,
+                network,
+                amount: pkg.price,
+                package_name: pkg.name
+            });
+        }
+
+        // Production: Call PawaPay API
+        const apiToken = process.env.PAWAPAY_API_TOKEN;
+        const baseUrl = process.env.PAWAPAY_BASE_URL || 'https://api.sandbox.pawapay.io';
+
+        if (!apiToken) {
+            return NextResponse.json(
+                { success: false, error: 'Payment system not configured' },
+                { status: 500 }
+            );
+        }
+
+        // Predict provider from phone
+        const predictResponse = await fetch(`${baseUrl}/v2/predict-provider`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ phoneNumber: formattedPhone })
         });
 
-        if (response.status === 'success' || response.status === 'pending') {
+        if (!predictResponse.ok) {
+            return NextResponse.json(
+                { success: false, error: 'Failed to validate phone number' },
+                { status: 400 }
+            );
+        }
+
+        const { provider, phoneNumber } = await predictResponse.json();
+
+        // Initiate deposit
+        const depositResponse = await fetch(`${baseUrl}/v2/deposits`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                depositId,
+                amount: pkg.price.toString(),
+                currency: 'UGX',
+                payer: {
+                    type: 'MMO',
+                    accountDetails: {
+                        phoneNumber,
+                        provider
+                    }
+                },
+                metadata: {
+                    packageId: pkg.id.toString(),
+                    macAddress: mac_address || 'unknown'
+                }
+            })
+        });
+
+        const depositResult = await depositResponse.json();
+
+        if (depositResponse.ok && (depositResult.status === 'ACCEPTED' || depositResult.status === 'PENDING')) {
             return NextResponse.json({
                 success: true,
                 message: 'Payment initiated. Please check your phone for the prompt.',
-                tx_ref,
+                tx_ref: depositId,
                 payment_id: paymentId,
                 network,
                 amount: pkg.price,
@@ -67,7 +161,7 @@ export async function POST(request: NextRequest) {
             });
         } else {
             return NextResponse.json(
-                { success: false, error: response.message || 'Payment initiation failed' },
+                { success: false, error: depositResult.message || 'Payment initiation failed' },
                 { status: 400 }
             );
         }
